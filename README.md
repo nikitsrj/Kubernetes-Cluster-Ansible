@@ -72,8 +72,9 @@ Edit hosts file and it should look like as follows
 <NODEPUBLICIP> ansible_ssh_extra_args='-o StrictHostKeyChecking=no' ansible_connection=ssh ansible_ssh_user=root ansible_ssh_private_key_file=~/.ssh/<SSH-KEY>
 ```
 
-**Note** - Update <MASTERPUBLICIP> and <NODEPUBLICIP> and <SSH-KEY> entries in hosts file.
 
+Note Update MASTERPUBLICIP and NODEPUBLICIP and SSH-KEY entries in hosts file.
+	
 Now edit ansible-playbook.yml and update MASTERPRIVATEIP value and save it.
 
 Run ansible playbook

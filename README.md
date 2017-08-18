@@ -17,7 +17,7 @@ Features
 
 Kubernetes Architecture
 =======================
-![kubernetes-arch](C:\Users\tarunprakash\Desktop\Docker-session\kubernetes-architecture)
+https://cdn.thenewstack.io/media/2016/11/Chart_02_Kubernetes-Architecture.png
 
 Who should use it ?
 ===================

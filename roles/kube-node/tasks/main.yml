@@ -1,0 +1,136 @@
+---
+# tasks file for kube-node
+- name: upgrade all packages
+  yum:
+    name: '*'
+    state: latest
+
+- name: Install epel-release for centos7
+  yum: name=epel-release state=present
+
+- name: Install packages
+  yum: name={{ item }} state=present
+  with_items:
+    - flannel
+    - kubernetes
+    - curl
+    - telnet
+    - wget
+    - ntp
+    - openssl
+    - bind-utils
+
+- name: Flush IPtables
+  command: iptables -F
+
+- name: disable selinux
+  command: setenforce 0
+
+- name: Fetching Node's IP.
+  shell: curl http://169.254.169.254/latest/meta-data/local-ipv4
+  register: Node_IP
+
+- debug: msg="{{Node_IP.stdout}}"
+
+
+- name: Set Node IP
+  set_fact:
+    NODE: "{{ Node_IP.stdout }}"
+
+
+- name: Configure etcd server for flannel service
+  lineinfile:
+    dest: /etc/sysconfig/flanneld
+    regexp: 'FLANNEL_ETCD_ENDPOINTS\=\"http\:\/\/127\.0\.0\.1\:2379\"'
+    line: 'FLANNEL_ETCD_ENDPOINTS="http://{{ MASTERPRIVATEIP }}:2379"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configure etcd server for flannel prefix
+  lineinfile:
+    dest: /etc/sysconfig/flanneld
+    regexp: 'FLANNEL_ETCD_PREFIX\=\"\/atomic\.io\/network\"'
+    line: 'FLANNEL_ETCD_PREFIX="/kube-centos/network"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: update KUBE_MASTER in kubernetes default config
+  lineinfile:
+    dest: /etc/kubernetes/config
+    regexp: 'KUBE_MASTER\=\"\--master\=http\:\/\/127\.0\.0\.1\:8080\"'
+    line: 'KUBE_MASTER="--master=http://{{ MASTERPRIVATEIP }}:8080"'
+    owner: root
+    group: root
+    mode: 0644
+
+
+- name: Adding ETCD config 
+  lineinfile:
+    path: /etc/kubernetes/config
+    line: 'KUBE_ETCD_SERVERS="--etcd-servers=http://{{ MASTERPRIVATEIP }}:2379"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configure kubelet service - KUBELET_ADDRESS
+  lineinfile:
+    dest: /etc/kubernetes/kubelet
+    regexp: 'KUBELET_ADDRESS\=\"\--address\=127\.0\.0\.1\"'
+    line: 'KUBELET_ADDRESS="--address=0.0.0.0"'
+    owner: root
+    group: root
+    mode: 0644
+  
+- name: Configure kubelet service - KUBELET_PORT
+  lineinfile:
+    dest: /etc/kubernetes/kubelet
+    regexp: 'KUBELET_PORT\="\--port\=10250"'
+    line: 'KUBELET_PORT="--port=10250"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configure kubelet service - KUBELET_HOSTNAME
+  lineinfile:
+    dest: /etc/kubernetes/kubelet
+    regexp: 'KUBELET_HOSTNAME\=\"\--hostname\-override\=127\.0\.0\.1\"'
+    line: 'KUBELET_HOSTNAME="--hostname-override={{ NODE }}"'
+    owner: root
+    group: root
+    mode: 0644
+  
+- name: Configure kubelet service - KUBELET_API_SERVER
+  lineinfile:
+    dest: /etc/kubernetes/kubelet
+    regexp: 'KUBELET_API_SERVER\=\"\--api\-servers\=http\:\/\/127\.0\.0\.1\:8080\"'
+    line: 'KUBELET_API_SERVER="--api-servers=http://{{ MASTERPRIVATEIP }}:8080"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configure kubelet service - KUBELET_HOSTNAME
+  lineinfile:
+    dest: /etc/kubernetes/kubelet
+    regexp: 'KUBELET_ARGS\=\"\"'
+    line: 'KUBELET_ARGS="--cluster-dns=10.254.3.100 --cluster-domain=cluster.local"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Restart NODE services
+  command: systemctl restart {{ item }}
+  with_items:
+    - kube-proxy
+    - kubelet
+    - docker
+    - flanneld
+
+- name: Enable NODE services to restart on boot
+  command: systemctl enable {{ item }}
+  with_items:
+    - kube-proxy
+    - kubelet
+    - docker
+    - flanneld

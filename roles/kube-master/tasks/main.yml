@@ -1,0 +1,253 @@
+---
+ #tasks file for kube-master
+- name: upgrade all packages
+  yum:
+    name: '*'
+    state: latest
+
+- name: install epel release for centos7
+  yum: pkg=epel-release state=installed
+
+- name: install required packages
+  yum: pkg={{item}} state=installed
+  with_items:
+   - etcd
+   - kubernetes
+   - wget
+   - curl
+   - ntp
+   - flannel
+   - openssl
+   - curl
+   - bind-utils
+ 
+- name: Flushing IPtables
+  command: iptables -F
+
+- name: Disable Selinux
+  command: setenforce 0
+
+- name: Fetching Master Private IP
+  shell: curl http://169.254.169.254/latest/meta-data/local-ipv4
+  register: MASTER_IP
+
+- debug: msg="{{MASTER_IP.stdout}}"
+
+
+- name: Set MASTER_PRIVATE  IP
+  set_fact:
+    MASTERPRIVATEIP: "{{ MASTER_IP.stdout }}"
+
+- name: Configure etcd to listen to all IP Address.
+  lineinfile:
+    dest: /etc/etcd/etcd.conf
+    regexp: 'ETCD_LISTEN_CLIENT_URLS\=\"http\:\/\/localhost\:2379\"'
+    line: 'ETCD_LISTEN_CLIENT_URLS="http://0.0.0.0:2379"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configure etcd Advertise client to listen to all IP Address.
+  lineinfile:
+    dest: /etc/etcd/etcd.conf
+    regexp: 'ETCD_ADVERTISE_CLIENT_URLS\=\"http\:\/\/localhost\:2379\"'
+    line: 'ETCD_ADVERTISE_CLIENT_URLS="http://0.0.0.0:2379"'
+    owner: root
+    group: root
+    mode: 0644
+
+  
+
+- name: Copy the KeyGenScript to remote
+  copy: src="{{ playbook_dir }}/mkcrt" dest=/usr/bin owner=root group=root mode='777'
+
+- name: Generate the SSL Keys for Secret and Authentication
+  shell: /usr/bin/mkcrt {{ MASTERPRIVATEIP }} "IP:{{ MASTERPRIVATEIP }},IP:10.254.0.1,DNS:kubernetes,DNS:kubernetes.default,DNS:kubernetes.default.svc,DNS:kubernetes.default.svc.cluster.local" 
+
+- name: Configure the Master IP in Cofig
+  lineinfile:
+    dest: /etc/kubernetes/config
+    regexp: 'KUBE_MASTER\=\"\--master\=http\:\/\/127\.0\.0\.1\:8080\"'
+    line: 'KUBE_MASTER="--master=http://{{ MASTERPRIVATEIP }}:8080"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configure Kubernetes API
+  lineinfile:
+    dest: /etc/kubernetes/apiserver
+    regexp: 'KUBE_API_ADDRESS\=\"\--insecure\-bind\-address\=127\.0\.0\.1\"'
+    line: 'KUBE_API_ADDRESS="--address=0.0.0.0"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configure KUBE_API_PORT
+  lineinfile:
+    dest: /etc/kubernetes/apiserver
+    regexp: '\# KUBE_API_PORT\=\"\--port\=8080\"'
+    line: 'KUBE_API_PORT="--port=8080"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configure KUBELET_PORT
+  lineinfile:
+    dest: /etc/kubernetes/apiserver
+    regexp: '\# KUBELET_PORT\=\"\--kubelet\-port\=10250"'
+    line: 'KUBELET_PORT="--kubelet-port=10250"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configure Kubernetes API server ETCD_SERVER IP
+  lineinfile:
+    dest: /etc/kubernetes/apiserver
+    regexp: 'KUBE_ETCD_SERVERS\=\"\--etcd\-servers\=http\:\/\/127\.0\.0\.1\:2379"'
+    line: 'KUBE_ETCD_SERVERS="--etcd-servers=http://{{ MASTERPRIVATEIP }}:2379"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configuring API Arguments or Keys
+  lineinfile:
+    dest: /etc/kubernetes/apiserver
+    regexp: 'KUBE_API_ARGS\=\"\"'
+    line: 'KUBE_API_ARGS="--client-ca-file=/srv/kubernetes/ca.crt --tls-cert-file=/srv/kubernetes/server.cert --tls-private-key-file=/srv/kubernetes/server.key"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configuring Master Controller Manager
+  lineinfile:
+    dest: /etc/kubernetes/controller-manager
+    regexp: 'KUBE_CONTROLLER_MANAGER_ARGS\=\"\"'
+    line: 'KUBE_CONTROLLER_MANAGER_ARGS="--root-ca-file=/srv/kubernetes/ca.crt --service-account-private-key-file=/srv/kubernetes/server.key"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: start the service
+  service: name=etcd state=started
+
+- name: Making Directory for Network Config
+  command: etcdctl mkdir /kube-centos/network
+
+- name: configure etcd network
+  command: 'etcdctl mk /kube-centos/network/config "{ \"Network\": \"172.30.0.0/16\", \"SubnetLen\": 24, \"Backend\": { \"Type\": \"vxlan\" } }"'
+  ignore_errors: yes
+
+- name: Configuring Flannel ETCD Endpoint
+  lineinfile:
+    dest: /etc/sysconfig/flanneld
+    regexp: 'FLANNEL_ETCD_ENDPOINTS\=\"http\:\/\/127\.0\.0\.1\:2379\"'
+    line: 'FLANNEL_ETCD_ENDPOINTS="http://{{ MASTERPRIVATEIP }}:2379"'
+    owner: root
+    group: root
+    mode: 0644  
+
+- name: Change in ETCD Prefix
+  lineinfile:
+    dest: /etc/sysconfig/flanneld
+    regexp: 'FLANNEL_ETCD_PREFIX\=\"\/atomic\.io\/network\"'
+    line: 'FLANNEL_ETCD_PREFIX="/kube-centos/network"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configure kubelet service - KUBELET_ADDRESS
+  lineinfile:
+    dest: /etc/kubernetes/kubelet
+    regexp: 'KUBELET_ADDRESS\=\"\--address\=127\.0\.0\.1\"'
+    line: 'KUBELET_ADDRESS="--address=0.0.0.0"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configure kubelet service - KUBELET_PORT
+  lineinfile:
+    dest: /etc/kubernetes/kubelet
+    regexp: '\# KUBELET_PORT\="\--port\=10250"'
+    line: 'KUBELET_PORT="--port=10250"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configure kubelet service - KUBELET_HOSTNAME
+  lineinfile:
+    dest: /etc/kubernetes/kubelet
+    regexp: 'KUBELET_HOSTNAME\=\"\--hostname\-override\=127\.0\.0\.1\"'
+    line: 'KUBELET_HOSTNAME="--hostname-override={{ MASTERPRIVATEIP }}"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Configure kubelet service - KUBELET_API_SERVER
+  lineinfile:
+    dest: /etc/kubernetes/kubelet
+    regexp: 'KUBELET_API_SERVER\=\"\--api\-servers\=http\:\/\/127\.0\.0\.1\:8080\"'
+    line: 'KUBELET_API_SERVER="--api-servers=http://{{ MASTERPRIVATEIP }}:8080"'
+    owner: root
+    group: root
+    mode: 0644
+
+
+
+- name: Restart kubernetes master services
+  command: systemctl restart "{{ item }}"
+  with_items:
+    - kubelet
+    - kube-proxy
+    - flanneld
+    - etcd
+    - kube-apiserver
+    - kube-controller-manager
+    - kube-scheduler
+    - docker
+
+- name: Enable kubernetes master services to restart on boot
+  command: systemctl enable "{{ item }}"
+  with_items:
+    - kubelet
+    - kube-proxy
+    - flanneld
+    - etcd
+    - kube-apiserver
+    - kube-controller-manager
+    - kube-scheduler
+    - docker
+
+
+- name: Copy K8S-AddonFile
+  copy: src={{ playbook_dir }}/K8SCONFIG dest=/root 
+
+- name: Running Kube-DNS replication Controller
+  command: "kubectl create -f /root/K8SCONFIG/skydns-rc.yaml"
+
+- name: Running Kube-DNS Service
+  command: "kubectl create -f /root/K8SCONFIG/skydns-svc.yaml"
+
+- name: Configure cluster DNS in kubelet
+  lineinfile:
+    dest: /etc/kubernetes/kubelet
+    regexp: 'KUBELET_ARGS\=\"\"'
+    line: 'KUBELET_ARGS="--cluster-dns=10.254.3.100 --cluster-domain=cluster.local"'
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Restart kubectl service
+  service: name=kubelet state=restarted
+
+- name: Deploying Dashboard
+  command: "kubectl create -f /root/K8SCONFIG/dashboard-controller.yaml"
+
+- name: Exposing Dashboard Service
+  command: "kubectl create -f /root/K8SCONFIG/dashboard-service.yaml"
+
+- name: Deploying Monitoring Components (Heapster+InfluxDB+Grafana)
+  command: "kubectl create -f /root/K8SCONFIG/Monitoring/."
+
+
+
+

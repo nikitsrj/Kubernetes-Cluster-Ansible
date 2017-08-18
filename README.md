@@ -73,7 +73,7 @@ Edit hosts file and it should look like as follows
 ```
 
 
-Note Update MASTERPUBLICIP and NODEPUBLICIP and SSH-KEY entries in hosts file.
+Note:- Update MASTERPUBLICIP and NODEPUBLICIP and SSH-KEY entries in hosts file.
 	
 Now edit ansible-playbook.yml and update MASTERPRIVATEIP value and save it.
 

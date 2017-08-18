@@ -17,7 +17,7 @@ Features
 
 Kubernetes Architecture
 =======================
-https://cdn.thenewstack.io/media/2016/11/Chart_02_Kubernetes-Architecture.png
+![Alt text](https://cdn.thenewstack.io/media/2016/11/Chart_02_Kubernetes-Architecture.png "K8S Arch")
 
 Who should use it ?
 ===================

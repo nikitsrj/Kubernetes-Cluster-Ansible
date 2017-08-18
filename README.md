@@ -40,7 +40,7 @@ Before you start, make sure you have completed the checklist from prerequisites.
 
 * Clone the repository
 ```
--bash-4.2# git clone git@bitbucket.org:mediaiq/kubernetes-ansible-cluster-setup.git
+-bash-4.2# https://github.com/nikitswaraj12345/Kubernetes-Cluster-Ansible.git
 Cloning into 'kubernetes-ansible-cluster-setup'...
 remote: Counting objects: 75, done.
 remote: Compressing objects: 100% (57/57), done.
@@ -49,7 +49,7 @@ Receiving objects: 100% (75/75), 16.88 KiB | 0 bytes/s, done.
 Resolving deltas: 100% (23/23), done.
 Checking connectivity... done.
 
--bash-4.2# cd  kubernetes-ansible-cluster-setup/
+-bash-4.2# cd Kubernetes-Cluster-Ansible
 -bash-4.2# ls -la
 total 44
 drwxr-xr-x 5 root root 4096 Aug 17 06:05 .

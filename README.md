@@ -30,7 +30,7 @@ Prerequisites
 	* Master --> t2.large --> 2 core, 8GB RAM
 	* Node --> t2.xlarge --> 4 core, 16GB RAM
 * AMI ( ami-eeff82f8 ) should be used. 
-* Install AWS cli on master node and make sure aws cli configured with credentials having ECR access to pull and push docker images.
+* Install AWS cli on master node and make sure aws cli configured with credentials having ECR access to pull and push docker images. (if you are using ECR as Image registry)
 * Ansible installed on local system where you will run this script.
 * Instances ssh private keys available to access EC2 machines, keys will be used by ansible to access and configure K8s cluster on these instances.
 

@@ -40,7 +40,7 @@ Before you start, make sure you have completed the checklist from prerequisites.
 
 * Clone the repository
 ```
--bash-4.2# https://github.com/nikitswaraj12345/Kubernetes-Cluster-Ansible.git
+-bash-4.2# https://github.com/nikitsrj/Kubernetes-Cluster-Ansible.git
 Cloning into 'kubernetes-ansible-cluster-setup'...
 remote: Counting objects: 75, done.
 remote: Compressing objects: 100% (57/57), done.

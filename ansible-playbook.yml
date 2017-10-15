@@ -5,6 +5,6 @@
 
 - hosts: kubenode
   vars:
-    MASTERPRIVATEIP:
+    MASTERPRIVATEIP: xx.xx.xx.xx 
   roles:
     - kube-node

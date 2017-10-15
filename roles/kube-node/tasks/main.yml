@@ -5,6 +5,30 @@
     name: '*'
     state: latest
 
+- name: Fetching K8S-1.6 Main Package
+  get_url:
+    url: https://s3.amazonaws.com/k8s-dep-file/k8s-1.6-rpm/kubernetes-1.6.7-1.el7.x86_64.rpm
+    dest: /root
+    mode: 0644
+
+- name: Fetching K8S-1.6 Master Package
+  get_url:
+    url: https://s3.amazonaws.com/k8s-dep-file/k8s-1.6-rpm/kubernetes-master-1.6.7-1.el7.x86_64.rpm
+    dest: /root
+    mode: 0644
+
+- name: Fetching K8S-1.6 Node Package
+  get_url:
+    url: https://s3.amazonaws.com/k8s-dep-file/k8s-1.6-rpm/kubernetes-node-1.6.7-1.el7.x86_64.rpm
+    dest: /root
+    mode: 0644
+
+- name: Fetching K8S-1.6 Client Package
+  get_url:
+    url: https://s3.amazonaws.com/k8s-dep-file/k8s-1.6-rpm/kubernetes-client-1.6.7-1.el7.x86_64.rpm
+    dest: /root
+    mode: 0644
+
 - name: Install epel-release for centos7
   yum: name=epel-release state=present
 
@@ -12,7 +36,10 @@
   yum: name={{ item }} state=present
   with_items:
     - flannel
-    - kubernetes
+    - /root/kubernetes-1.6.7-1.el7.x86_64.rpm
+    - /root/kubernetes-master-1.6.7-1.el7.x86_64.rpm
+    - /root/kubernetes-node-1.6.7-1.el7.x86_64.rpm
+    - /root/kubernetes-client-1.6.7-1.el7.x86_64.rpm
     - curl
     - telnet
     - wget
@@ -41,7 +68,7 @@
 - name: Configure etcd server for flannel service
   lineinfile:
     dest: /etc/sysconfig/flanneld
-    regexp: 'FLANNEL_ETCD_ENDPOINTS\=\"http\:\/\/127\.0\.0\.1\:2379\"'
+    regexp: '^FLANNEL_ETCD_ENDPOINTS='
     line: 'FLANNEL_ETCD_ENDPOINTS="http://{{ MASTERPRIVATEIP }}:2379"'
     owner: root
     group: root
@@ -50,7 +77,7 @@
 - name: Configure etcd server for flannel prefix
   lineinfile:
     dest: /etc/sysconfig/flanneld
-    regexp: 'FLANNEL_ETCD_PREFIX\=\"\/atomic\.io\/network\"'
+    regexp: '^FLANNEL_ETCD_PREFIX='
     line: 'FLANNEL_ETCD_PREFIX="/kube-centos/network"'
     owner: root
     group: root
@@ -59,7 +86,7 @@
 - name: update KUBE_MASTER in kubernetes default config
   lineinfile:
     dest: /etc/kubernetes/config
-    regexp: 'KUBE_MASTER\=\"\--master\=http\:\/\/127\.0\.0\.1\:8080\"'
+    regexp: '^KUBE_MASTER='
     line: 'KUBE_MASTER="--master=http://{{ MASTERPRIVATEIP }}:8080"'
     owner: root
     group: root
@@ -77,7 +104,7 @@
 - name: Configure kubelet service - KUBELET_ADDRESS
   lineinfile:
     dest: /etc/kubernetes/kubelet
-    regexp: 'KUBELET_ADDRESS\=\"\--address\=127\.0\.0\.1\"'
+    regexp: '^KUBELET_ADDRESS='
     line: 'KUBELET_ADDRESS="--address=0.0.0.0"'
     owner: root
     group: root
@@ -85,8 +112,7 @@
   
 - name: Configure kubelet service - KUBELET_PORT
   lineinfile:
-    dest: /etc/kubernetes/kubelet
-    regexp: 'KUBELET_PORT\="\--port\=10250"'
+    path: /etc/kubernetes/kubelet
     line: 'KUBELET_PORT="--port=10250"'
     owner: root
     group: root
@@ -95,7 +121,7 @@
 - name: Configure kubelet service - KUBELET_HOSTNAME
   lineinfile:
     dest: /etc/kubernetes/kubelet
-    regexp: 'KUBELET_HOSTNAME\=\"\--hostname\-override\=127\.0\.0\.1\"'
+    regexp: '^KUBELET_HOSTNAME='
     line: 'KUBELET_HOSTNAME="--hostname-override={{ NODE }}"'
     owner: root
     group: root
@@ -104,7 +130,7 @@
 - name: Configure kubelet service - KUBELET_API_SERVER
   lineinfile:
     dest: /etc/kubernetes/kubelet
-    regexp: 'KUBELET_API_SERVER\=\"\--api\-servers\=http\:\/\/127\.0\.0\.1\:8080\"'
+    regexp: '^KUBELET_API_SERVER='
     line: 'KUBELET_API_SERVER="--api-servers=http://{{ MASTERPRIVATEIP }}:8080"'
     owner: root
     group: root
@@ -113,8 +139,8 @@
 - name: Configure kubelet service - KUBELET_HOSTNAME
   lineinfile:
     dest: /etc/kubernetes/kubelet
-    regexp: 'KUBELET_ARGS\=\"\"'
-    line: 'KUBELET_ARGS="--cluster-dns=10.254.3.100 --cluster-domain=cluster.local"'
+    regexp: '^KUBELET_ARGS='
+    line: 'KUBELET_ARGS="--cgroup-driver=systemd --cluster-dns=10.254.3.100 --cluster-domain=cluster.local --cloud-provider=aws"'
     owner: root
     group: root
     mode: 0644

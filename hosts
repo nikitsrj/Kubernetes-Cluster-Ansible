@@ -1,3 +1,6 @@
 [kubemaster]
+xx.xx.xx.xx ansible_ssh_extra_args='-o StrictHostKeyChecking=no' ansible_connection=ssh ansible_ssh_user=root ansible_ssh_private_key_file=~/.ssh/kubernetes-cluster.pem
 
 [kubenode]
+xx.xx.xx.xx ansible_ssh_extra_args='-o StrictHostKeyChecking=no' ansible_connection=ssh ansible_ssh_user=root ansible_ssh_private_key_file=~/.ssh/kubernetes-cluster.pem
+

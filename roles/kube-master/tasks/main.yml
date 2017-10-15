@@ -5,6 +5,30 @@
     name: '*'
     state: latest
 
+- name: Fetching K8S-1.6 Main Package
+  get_url:
+    url: https://s3.amazonaws.com/k8s-dep-file/k8s-1.6-rpm/kubernetes-1.6.7-1.el7.x86_64.rpm
+    dest: /root
+    mode: 0644
+
+- name: Fetching K8S-1.6 Master Package
+  get_url:
+    url: https://s3.amazonaws.com/k8s-dep-file/k8s-1.6-rpm/kubernetes-master-1.6.7-1.el7.x86_64.rpm
+    dest: /root
+    mode: 0644
+
+- name: Fetching K8S-1.6 Node Package
+  get_url:
+    url: https://s3.amazonaws.com/k8s-dep-file/k8s-1.6-rpm/kubernetes-node-1.6.7-1.el7.x86_64.rpm
+    dest: /root
+    mode: 0644
+
+- name: Fetching K8S-1.6 Client Package
+  get_url:
+    url: https://s3.amazonaws.com/k8s-dep-file/k8s-1.6-rpm/kubernetes-client-1.6.7-1.el7.x86_64.rpm
+    dest: /root
+    mode: 0644
+
 - name: install epel release for centos7
   yum: pkg=epel-release state=installed
 
@@ -12,7 +36,10 @@
   yum: pkg={{item}} state=installed
   with_items:
    - etcd
-   - kubernetes
+   - /root/kubernetes-1.6.7-1.el7.x86_64.rpm
+   - /root/kubernetes-master-1.6.7-1.el7.x86_64.rpm
+   - /root/kubernetes-node-1.6.7-1.el7.x86_64.rpm
+   - /root/kubernetes-client-1.6.7-1.el7.x86_64.rpm
    - wget
    - curl
    - ntp
@@ -20,12 +47,17 @@
    - openssl
    - curl
    - bind-utils
+   - python2-pip
+
+- name: Install aws-cli
+  command: pip install awscli
  
 - name: Flushing IPtables
   command: iptables -F
 
 - name: Disable Selinux
   command: setenforce 0
+  ignore_errors: yes
 
 - name: Fetching Master Private IP
   shell: curl http://169.254.169.254/latest/meta-data/local-ipv4
@@ -41,7 +73,7 @@
 - name: Configure etcd to listen to all IP Address.
   lineinfile:
     dest: /etc/etcd/etcd.conf
-    regexp: 'ETCD_LISTEN_CLIENT_URLS\=\"http\:\/\/localhost\:2379\"'
+    regexp: '^ETCD_LISTEN_CLIENT_URLS='
     line: 'ETCD_LISTEN_CLIENT_URLS="http://0.0.0.0:2379"'
     owner: root
     group: root
@@ -50,7 +82,7 @@
 - name: Configure etcd Advertise client to listen to all IP Address.
   lineinfile:
     dest: /etc/etcd/etcd.conf
-    regexp: 'ETCD_ADVERTISE_CLIENT_URLS\=\"http\:\/\/localhost\:2379\"'
+    regexp: '^ETCD_ADVERTISE_CLIENT_URLS='
     line: 'ETCD_ADVERTISE_CLIENT_URLS="http://0.0.0.0:2379"'
     owner: root
     group: root
@@ -67,7 +99,7 @@
 - name: Configure the Master IP in Cofig
   lineinfile:
     dest: /etc/kubernetes/config
-    regexp: 'KUBE_MASTER\=\"\--master\=http\:\/\/127\.0\.0\.1\:8080\"'
+    regexp: '^KUBE_MASTER='
     line: 'KUBE_MASTER="--master=http://{{ MASTERPRIVATEIP }}:8080"'
     owner: root
     group: root
@@ -76,7 +108,7 @@
 - name: Configure Kubernetes API
   lineinfile:
     dest: /etc/kubernetes/apiserver
-    regexp: 'KUBE_API_ADDRESS\=\"\--insecure\-bind\-address\=127\.0\.0\.1\"'
+    regexp: '^KUBE_API_ADDRESS='
     line: 'KUBE_API_ADDRESS="--address=0.0.0.0"'
     owner: root
     group: root
@@ -84,8 +116,7 @@
 
 - name: Configure KUBE_API_PORT
   lineinfile:
-    dest: /etc/kubernetes/apiserver
-    regexp: '\# KUBE_API_PORT\=\"\--port\=8080\"'
+    path: /etc/kubernetes/apiserver
     line: 'KUBE_API_PORT="--port=8080"'
     owner: root
     group: root
@@ -93,8 +124,7 @@
 
 - name: Configure KUBELET_PORT
   lineinfile:
-    dest: /etc/kubernetes/apiserver
-    regexp: '\# KUBELET_PORT\=\"\--kubelet\-port\=10250"'
+    path: /etc/kubernetes/apiserver
     line: 'KUBELET_PORT="--kubelet-port=10250"'
     owner: root
     group: root
@@ -103,7 +133,7 @@
 - name: Configure Kubernetes API server ETCD_SERVER IP
   lineinfile:
     dest: /etc/kubernetes/apiserver
-    regexp: 'KUBE_ETCD_SERVERS\=\"\--etcd\-servers\=http\:\/\/127\.0\.0\.1\:2379"'
+    regexp: '^KUBE_ETCD_SERVERS='
     line: 'KUBE_ETCD_SERVERS="--etcd-servers=http://{{ MASTERPRIVATEIP }}:2379"'
     owner: root
     group: root
@@ -112,8 +142,8 @@
 - name: Configuring API Arguments or Keys
   lineinfile:
     dest: /etc/kubernetes/apiserver
-    regexp: 'KUBE_API_ARGS\=\"\"'
-    line: 'KUBE_API_ARGS="--client-ca-file=/srv/kubernetes/ca.crt --tls-cert-file=/srv/kubernetes/server.cert --tls-private-key-file=/srv/kubernetes/server.key"'
+    regexp: '^KUBE_API_ARGS='
+    line: 'KUBE_API_ARGS="--client-ca-file=/srv/kubernetes/ca.crt --tls-cert-file=/srv/kubernetes/server.cert --tls-private-key-file=/srv/kubernetes/server.key --cloud-provider=aws"'
     owner: root
     group: root
     mode: 0644
@@ -121,8 +151,8 @@
 - name: Configuring Master Controller Manager
   lineinfile:
     dest: /etc/kubernetes/controller-manager
-    regexp: 'KUBE_CONTROLLER_MANAGER_ARGS\=\"\"'
-    line: 'KUBE_CONTROLLER_MANAGER_ARGS="--root-ca-file=/srv/kubernetes/ca.crt --service-account-private-key-file=/srv/kubernetes/server.key"'
+    regexp: '^KUBE_CONTROLLER_MANAGER_ARGS='
+    line: 'KUBE_CONTROLLER_MANAGER_ARGS="--root-ca-file=/srv/kubernetes/ca.crt --service-account-private-key-file=/srv/kubernetes/server.key --cloud-provider=aws"'
     owner: root
     group: root
     mode: 0644
@@ -132,6 +162,7 @@
 
 - name: Making Directory for Network Config
   command: etcdctl mkdir /kube-centos/network
+  ignore_errors: yes
 
 - name: configure etcd network
   command: 'etcdctl mk /kube-centos/network/config "{ \"Network\": \"172.30.0.0/16\", \"SubnetLen\": 24, \"Backend\": { \"Type\": \"vxlan\" } }"'
@@ -140,7 +171,7 @@
 - name: Configuring Flannel ETCD Endpoint
   lineinfile:
     dest: /etc/sysconfig/flanneld
-    regexp: 'FLANNEL_ETCD_ENDPOINTS\=\"http\:\/\/127\.0\.0\.1\:2379\"'
+    regexp: '^FLANNEL_ETCD_ENDPOINTS='
     line: 'FLANNEL_ETCD_ENDPOINTS="http://{{ MASTERPRIVATEIP }}:2379"'
     owner: root
     group: root
@@ -149,7 +180,7 @@
 - name: Change in ETCD Prefix
   lineinfile:
     dest: /etc/sysconfig/flanneld
-    regexp: 'FLANNEL_ETCD_PREFIX\=\"\/atomic\.io\/network\"'
+    regexp: '^FLANNEL_ETCD_PREFIX='
     line: 'FLANNEL_ETCD_PREFIX="/kube-centos/network"'
     owner: root
     group: root
@@ -158,7 +189,7 @@
 - name: Configure kubelet service - KUBELET_ADDRESS
   lineinfile:
     dest: /etc/kubernetes/kubelet
-    regexp: 'KUBELET_ADDRESS\=\"\--address\=127\.0\.0\.1\"'
+    regexp: '^KUBELET_ADDRESS='
     line: 'KUBELET_ADDRESS="--address=0.0.0.0"'
     owner: root
     group: root
@@ -166,8 +197,7 @@
 
 - name: Configure kubelet service - KUBELET_PORT
   lineinfile:
-    dest: /etc/kubernetes/kubelet
-    regexp: '\# KUBELET_PORT\="\--port\=10250"'
+    path: /etc/kubernetes/kubelet
     line: 'KUBELET_PORT="--port=10250"'
     owner: root
     group: root
@@ -176,7 +206,7 @@
 - name: Configure kubelet service - KUBELET_HOSTNAME
   lineinfile:
     dest: /etc/kubernetes/kubelet
-    regexp: 'KUBELET_HOSTNAME\=\"\--hostname\-override\=127\.0\.0\.1\"'
+    regexp: '^KUBELET_HOSTNAME='
     line: 'KUBELET_HOSTNAME="--hostname-override={{ MASTERPRIVATEIP }}"'
     owner: root
     group: root
@@ -185,7 +215,7 @@
 - name: Configure kubelet service - KUBELET_API_SERVER
   lineinfile:
     dest: /etc/kubernetes/kubelet
-    regexp: 'KUBELET_API_SERVER\=\"\--api\-servers\=http\:\/\/127\.0\.0\.1\:8080\"'
+    regexp: '^KUBELET_API_SERVER='
     line: 'KUBELET_API_SERVER="--api-servers=http://{{ MASTERPRIVATEIP }}:8080"'
     owner: root
     group: root
@@ -217,37 +247,49 @@
     - kube-scheduler
     - docker
 
+- name: Regenerate Service Accounts of default
+  command: "kubectl delete sa/default"
+
+- name: Regenerate Service Accounts of Kube-System
+  command: "kubectl delete sa/default -n kube-system"
+
 
 - name: Copy K8S-AddonFile
   copy: src={{ playbook_dir }}/K8SCONFIG dest=/root 
 
+- name: Delete all the default pods if present in KubeSystem Namespace.
+  command: "kubectl  delete po,deploy,rc,svc --all -n kube-system"
+  ignore_errors: yes
+
 - name: Running Kube-DNS replication Controller
   command: "kubectl create -f /root/K8SCONFIG/skydns-rc.yaml"
+  ignore_errors: yes
 
 - name: Running Kube-DNS Service
   command: "kubectl create -f /root/K8SCONFIG/skydns-svc.yaml"
+  ignore_errors: yes
 
 - name: Configure cluster DNS in kubelet
   lineinfile:
     dest: /etc/kubernetes/kubelet
-    regexp: 'KUBELET_ARGS\=\"\"'
-    line: 'KUBELET_ARGS="--cluster-dns=10.254.3.100 --cluster-domain=cluster.local"'
+    regexp: '^KUBELET_ARGS='
+    line: 'KUBELET_ARGS="--cgroup-driver=systemd --cluster-dns=10.254.3.100 --cluster-domain=cluster.local --cloud-provider=aws"'
     owner: root
     group: root
     mode: 0644
 
 - name: Restart kubectl service
   service: name=kubelet state=restarted
+  ignore_errors: yes
 
 - name: Deploying Dashboard
   command: "kubectl create -f /root/K8SCONFIG/dashboard-controller.yaml"
+  ignore_errors: yes
 
 - name: Exposing Dashboard Service
   command: "kubectl create -f /root/K8SCONFIG/dashboard-service.yaml"
+  ignore_errors: yes
 
 - name: Deploying Monitoring Components (Heapster+InfluxDB+Grafana)
   command: "kubectl create -f /root/K8SCONFIG/Monitoring/."
-
-
-
-
+  ignore_errors: yes
